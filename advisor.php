@@ -8,13 +8,79 @@ $query = "SELECT * FROM profiles WHERE id = '$user_id' LIMIT 1";
 $result = mysqli_query($conn, $query);
 $user = mysqli_fetch_assoc($result);
 
-$full_name = $user['full_name'] ?? 'Syed Ahmed';
-$department = $user['department'] ?? 'CSE';
-$semester = $user['semester'] ?? '1st Semester';
+$full_name = $user['full_name'] ?? 'Md. Rifat Raihan';
+$department = $user['department'] ?? 'Electrical & Electronic Engineering';
+$semester = $user['semester'] ?? '7th';
 
 $profile_pic = '';
 if (!empty($user['profile_pic'])) {
     $profile_pic = (strpos($user['profile_pic'], 'http') === 0) ? $user['profile_pic'] : 'uploads/' . $user['profile_pic'];
+}
+
+// Handle AJAX Request from JavaScript
+if (isset($_POST['get_ai_response'])) {
+    header('Content-Type: application/json');
+    $user_message = trim($_POST['message'] ?? '');
+    
+    if (empty($user_message)) {
+        echo json_encode(['status' => 'error', 'message' => 'Message cannot be empty']);
+        exit;
+    }
+
+    $apiKey = "AQ.Ab8RN6IH6t4BDeSW-sFSg_ImYUjWa7IKPR6fjX_wQCQLlEQPCg";
+    
+    // ডকুমেন্টের সঠিক এবং আপডেট করা জেমিনি মডেল ও রেস্ট এন্ডপয়েন্ট
+    $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=" . $apiKey;
+
+    $data = [
+        "contents" => [
+            [
+                "parts" => [
+                    ["text" => "You are an AI Academic Advisor for university students. Give helpful, concise answers to: " . $user_message]
+                ]
+            ]
+        ]
+    ];
+
+    $ch = curl_init($endpoint);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+
+    if ($err) {
+        echo json_encode(['status' => 'error', 'message' => 'Curl Error: ' . $err]);
+        exit;
+    }
+
+    $result_arr = json_decode($response, true);
+
+    if ($http_code !== 200) {
+        $errorMsg = $result_arr['error']['message'] ?? 'HTTP Status ' . $http_code;
+        echo json_encode(['status' => 'error', 'message' => $errorMsg, 'debug' => $result_arr]);
+        exit;
+    }
+
+    if (isset($result_arr['candidates'][0]['content']['parts'][0]['text'])) {
+        $ai_reply = $result_arr['candidates'][0]['content']['parts'][0]['text'];
+        echo json_encode(['status' => 'success', 'reply' => $ai_reply]);
+    } else {
+        echo json_encode([
+            'status' => 'error', 
+            'message' => 'Invalid API Response Structure', 
+            'debug' => $result_arr
+        ]);
+    }
+    exit;
 }
 ?>
 <!DOCTYPE html><html lang="en"><head>
@@ -151,9 +217,9 @@ if (!empty($user['profile_pic'])) {
 </div>
 
 <!-- Chat Area -->
-<div id="chat-container" class="flex-1 overflow-y-auto chat-scroll px-container-margin flex flex-col gap-lg pb-md">
+<div id="chat-container" class="flex-1 overflow-y-auto chat-scroll px-container-margin flex flex-col gap-lg pb-24">
 <div class="text-center mt-sm">
-<span class="text-on-surface-variant font-label-caps text-label-caps bg-surface-container px-2 py-1 rounded-full">Today, 10:42 AM</span>
+<span id="dynamic-time" class="text-on-surface-variant font-label-caps text-label-caps bg-surface-container px-2 py-1 rounded-full">Today, --:-- --</span>
 </div>
 
 <!-- AI Initial Message -->
@@ -178,9 +244,9 @@ if (!empty($user['profile_pic'])) {
 <span class="material-symbols-outlined text-[16px]">code</span>
 What should I study for C Programming?
 </button>
-<button onclick="sendQuickPrompt('Career path for CSE 1st semester')" class="bg-surface border border-outline-variant text-on-surface font-body-sm text-body-sm px-4 py-2 rounded-full hover:bg-surface-container transition-colors shrink-0 shadow-sm flex items-center gap-1">
+<button onclick="sendQuickPrompt('Career path for EEE 7th semester')" class="bg-surface border border-outline-variant text-on-surface font-body-sm text-body-sm px-4 py-2 rounded-full hover:bg-surface-container transition-colors shrink-0 shadow-sm flex items-center gap-1">
 <span class="material-symbols-outlined text-[16px]">route</span>
-Career path for CSE 1st semester
+Career path for EEE 7th semester
 </button>
 </div>
 
@@ -193,32 +259,43 @@ Career path for CSE 1st semester
 </div>
 </div>
 
-<!-- BottomNavBar (Optimized with proper width and modern styling) -->
-<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center h-16 pb-safe bg-white border-t border-slate-200 shadow-md">
-<a class="flex flex-col items-center justify-center text-slate-500 hover:text-black transition-colors duration-200 w-20 h-full" href="study-hub.php">
-<span class="material-symbols-outlined text-[22px]">auto_stories</span>
-<span class="text-[11px] font-semibold mt-0.5 tracking-tight whitespace-nowrap">Study Hub</span>
-</a>
-<a class="flex flex-col items-center justify-center text-slate-500 hover:text-black transition-colors duration-200 w-20 h-full" href="exam-prep.php">
-<span class="material-symbols-outlined text-[22px]">quiz</span>
-<span class="text-[11px] font-semibold mt-0.5 tracking-tight whitespace-nowrap">Exam Prep</span>
-</a>
-<a class="flex flex-col items-center justify-center text-black relative after:content-[''] after:absolute after:top-0 after:w-10 after:h-0.5 after:bg-black w-20 h-full bg-slate-50" href="advisor.php">
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center h-16 bg-white border-t border-slate-200 shadow-md">
+<a href="advisor.php" class="flex flex-col items-center justify-center text-black relative after:content-[''] after:absolute after:top-0 after:w-10 after:h-0.5 after:bg-black w-20 h-full bg-slate-50">
 <span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">psychology</span>
 <span class="text-[11px] font-semibold mt-0.5 tracking-tight whitespace-nowrap">Advisor</span>
 </a>
-<a class="flex flex-col items-center justify-center text-slate-500 hover:text-black transition-colors duration-200 w-20 h-full" href="profile.php">
+<a href="exam-prep.php" class="flex flex-col items-center justify-center text-slate-500 hover:text-black transition-colors duration-200 w-20 h-full">
+<span class="material-symbols-outlined text-[22px]">quiz</span>
+<span class="text-[11px] font-semibold mt-0.5 tracking-tight whitespace-nowrap">Exam Prep</span>
+</a>
+<a href="study-hub.php" class="flex flex-col items-center justify-center text-slate-500 hover:text-black transition-colors duration-200 w-20 h-full">
+<span class="material-symbols-outlined text-[22px]">auto_stories</span>
+<span class="text-[11px] font-semibold mt-0.5 tracking-tight whitespace-nowrap">Study Material</span>
+</a>
+<a href="profile.php" class="flex flex-col items-center justify-center text-slate-500 hover:text-black transition-colors duration-200 w-20 h-full">
 <span class="material-symbols-outlined text-[22px]">person</span>
 <span class="text-[11px] font-semibold mt-0.5 tracking-tight whitespace-nowrap">Profile</span>
 </a>
 </nav>
 
 <script>
+function updateChatTime() {
+    const now = new Date();
+    let hours = now.getHours();
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const timeString = `${hours}:${minutes} ${ampm}`;
+    document.getElementById('dynamic-time').innerText = `Today, ${timeString}`;
+}
+updateChatTime();
+
 const chatContainer = document.getElementById('chat-container');
 const userInput = document.getElementById('user-input');
 const sendBtn = document.getElementById('send-btn');
 const suggestionsBox = document.getElementById('suggestions-box');
-const mainContent = document.getElementById('main-content');
 const profilePicUrl = "<?php echo htmlspecialchars($profile_pic); ?>";
 
 let hasInteracted = false;
@@ -237,12 +314,18 @@ function hideSuggestions() {
 function appendMessage(text, sender) {
     hideSuggestions();
     
+    // Markdown এর ### বা নতুন লাইনগুলোকে HTML এ রূপান্তর করার জন্য
+    let formattedText = text
+        .replace(/###\s*(.*?)(?=\n|<|$)/g, '<strong class="block text-primary font-bold mt-2">$1</strong>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+
     const messageDiv = document.createElement('div');
     if (sender === 'user') {
         messageDiv.className = "flex gap-xs items-end w-full max-w-[90%] md:max-w-[75%] self-end flex-row-reverse";
         messageDiv.innerHTML = `
             <div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant shrink-0 mb-1">
-                <img class="w-full h-full object-cover" src="${profilePicUrl}" onerror="this.src='https://lh3.googleusercontent.com/aida-public/AB6AXuAlxbHJD7opOq8BHr4gKZ_QD_SkG0Kjp_g0lk796COKHiEGHvmQqxJ3KfcGu70FVQv-SGf0g26irUnciXxG1Irb6pb1YAvGQODVATgdkdSHC1Z6gGk9XMGsFau1-F_9Yg08umRy53xXGiC7VizukLBiGl64x9gSrhDfQqj0IvdnVsXGtBQ_InEl56J-gzUg_UphkepZCr-xtEJAfP4Y3Ze4ze39wANVadlHWTe0nkX10kkPNw6q3z2gQw';">
+                <img class="w-full h-full object-cover" src="${profilePicUrl}">
             </div>
             <div class="bg-primary text-on-primary p-sm rounded-2xl rounded-br-none shadow-sm">
                 <p class="font-body-sm text-body-sm leading-relaxed">${text}</p>
@@ -255,7 +338,7 @@ function appendMessage(text, sender) {
                 <span class="material-symbols-outlined text-on-primary text-[18px]">psychology</span>
             </div>
             <div class="bg-surface border border-surface-variant p-sm rounded-2xl rounded-bl-none shadow-sm flex flex-col gap-2">
-                <p class="text-on-surface font-body-sm text-body-sm leading-relaxed">${text}</p>
+                <p class="text-on-surface font-body-sm text-body-sm leading-relaxed">${formattedText}</p>
             </div>
         `;
     }
@@ -263,16 +346,55 @@ function appendMessage(text, sender) {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
-function handleSendMessage() {
+async function handleSendMessage() {
     const text = userInput.value.trim();
     if (!text) return;
     
     appendMessage(text, 'user');
     userInput.value = '';
 
-    setTimeout(() => {
-        appendMessage("That's a great question regarding your academic goals! Keep practicing consistently and let me know if you need specific resources.", 'ai');
-    }, 1000);
+    const loadingId = 'loading-' + Date.now();
+    const loadingDiv = document.createElement('div');
+    loadingDiv.id = loadingId;
+    loadingDiv.className = "flex gap-xs items-end w-full max-w-[90%] md:max-w-[75%] my-2";
+    loadingDiv.innerHTML = `
+        <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0 mb-1">
+            <span class="material-symbols-outlined text-on-primary text-[18px]">psychology</span>
+        </div>
+        <div class="bg-surface border border-surface-variant p-sm rounded-2xl rounded-bl-none shadow-sm">
+            <p class="text-on-surface font-body-sm text-body-sm">Thinking...</p>
+        </div>
+    `;
+    chatContainer.appendChild(loadingId ? loadingDiv : ''); // fixed structure
+    chatContainer.appendChild(loadingDiv);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+
+    try {
+        const formData = new URLSearchParams();
+        formData.append('get_ai_response', '1');
+        formData.append('message', text);
+
+        const response = await fetch('advisor.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData
+        });
+
+        const data = await response.json();
+        document.getElementById(loadingId).remove();
+
+        if (data.status === 'success') {
+            appendMessage(data.reply, 'ai');
+        } else {
+            console.error("API Error Details:", data);
+            let errorMsg = data.message || 'Unknown error';
+            appendMessage("API Error: " + errorMsg, 'ai');
+        }
+
+    } catch (error) {
+        document.getElementById(loadingId).remove();
+        appendMessage("নেটওয়ার্ক বা সার্ভারে সংযোগ স্থাপন করতে সমস্যা হচ্ছে।", 'ai');
+    }
 }
 
 function sendQuickPrompt(text) {
